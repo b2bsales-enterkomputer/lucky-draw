@@ -298,9 +298,37 @@
    * Generate kode unik dengan format EK-XXXX (4 digit random).
    * Dicek ulang ke database untuk pastikan belum dipakai sebelumnya.
    */
-  function generateRandomKode() {
-    const num = Math.floor(1000 + Math.random() * 9000); // 1000-9999
-    return `EK-${num}`;
+  /**
+   * Generate kode unik berbasis inisial nama + timestamp + random suffix.
+   * Tujuannya supaya kode TIDAK mudah ditebak (beda dengan kode 4 digit polos).
+   *
+   * Format: EK-<2 huruf inisial><4 digit dari timestamp><2 karakter random>
+   * Contoh: "Budi Santoso" → EK-BS84F2K
+   *
+   * - Inisial nama: huruf pertama dari kata pertama & kata terakhir nama.
+   * - Timestamp: diambil dari Date.now(), dipotong supaya tetap pendek
+   *   tapi tetap berbeda tiap detik (jadi sulit ditebak urutannya).
+   * - Random suffix: 2 karakter acak (huruf+angka) sebagai pengaman tambahan.
+   */
+  function generateRandomKode(nama) {
+    // Ambil inisial dari nama (2 huruf)
+    const words = nama.trim().split(/\s+/);
+    const initials = (
+      (words[0]?.[0] || "X") +
+      (words.length > 1 ? words[words.length - 1][0] : (words[0]?.[1] || "X"))
+    ).toUpperCase();
+
+    // Ambil 4 digit dari timestamp saat ini (basis36 supaya lebih acak terlihatnya)
+    const timestampPart = Date.now().toString(36).slice(-4).toUpperCase();
+
+    // 2 karakter random tambahan (huruf+angka campur)
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // tanpa I/O/0/1 biar gak ambigu
+    let randomPart = "";
+    for (let i = 0; i < 2; i++) {
+      randomPart += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    return `EK-${initials}${timestampPart}${randomPart}`;
   }
 
   /**
@@ -352,9 +380,9 @@
   /**
    * Generate kode unik — retry kalau ternyata sudah ada (sangat jarang terjadi).
    */
-  async function generateUniqueKode() {
+  async function generateUniqueKode(nama) {
     for (let i = 0; i < 5; i++) {
-      const kode = generateRandomKode();
+      const kode = generateRandomKode(nama);
       const exists = await kodeExists(kode);
       if (!exists) return kode;
     }
@@ -383,7 +411,7 @@
     btn.textContent = "Membuat kode...";
 
     try {
-      const kode = await generateUniqueKode();
+      const kode = await generateUniqueKode(nama);
       await insertKode(kode, nama, hp);
       showResult(nama, hp, kode);
     } catch (err) {
